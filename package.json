@@ -1,0 +1,11 @@
+{
+  "name": "fast-csv-reader-20261121",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "High-speed drop-in replacement for csv-reader 1.0.0 handling malformed CSV files.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.18"
+  }
+}
