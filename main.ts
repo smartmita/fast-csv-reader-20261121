@@ -3,8 +3,12 @@ import { join } from 'node:path';
 import { setFlagsFromString } from 'node:v8';
 
 setFlagsFromString('--no-incremental-marking');
-setFlagsFromString('--no-concurrent-recompilation');
-setFlagsFromString('--no-concurrent-sweeping');
+try {
+  setFlagsFromString('--no-concurrent-recompilation');
+  setFlagsFromString('--no-concurrent-sweeping');
+} catch {
+  // Ignore unsupported optional V8 flags on older Node 22 patch releases
+}
 
 const { run } = (await import(new URL('./solve.js', import.meta.url).href)) as {
   run: (input: { text: string; header: boolean }) => unknown;
