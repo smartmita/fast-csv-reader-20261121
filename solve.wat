@@ -1,5 +1,5 @@
 (module
-  (memory (export "memory") 96)
+  (memory (export "memory") 110)
 
   ;; Static JSON string fragments at 0..320
   (data (i32.const 0) "{\"code\":\"stray_cr\",\"line\":")
@@ -26,12 +26,12 @@
   (global $row0_base i32 (i32.const 66560))
   (global $row0_limit i32 (i32.const 131072))
   (global $in_base i32 (i32.const 132096))
-  (global $out_base i32 (i32.const 264192))
-  (global $out_limit i32 (i32.const 920000))
-  (global $extra_base i32 (i32.const 930000))
-  (global $extra_limit i32 (i32.const 1970000))
-  (global $err_base i32 (i32.const 1980000))
-  (global $err_limit i32 (i32.const 6180000))
+  (global $out_base i32 (i32.const 656448))
+  (global $out_limit i32 (i32.const 1680000))
+  (global $extra_base i32 (i32.const 1705024))
+  (global $extra_limit i32 (i32.const 2750000))
+  (global $err_base i32 (i32.const 2753600))
+  (global $err_limit i32 (i32.const 6947000))
 
   (func (export "reset_case")
     (i32.store (i32.const 516) (global.get $out_base)) ;; op
@@ -320,7 +320,7 @@
     (local $soft_p_limit i32)
 
     (local.set $p (local.get $src_start))
-    (local.set $op (i32.load (i32.const 516)))
+    (local.set $op (global.get $out_base))
     (local.set $eop (i32.load (i32.const 536)))
     (local.set $extra_op (i32.load (i32.const 540)))
     (local.set $line (i32.load (i32.const 520)))
@@ -451,10 +451,10 @@
           )
         )
 
-        ;; Soft-pause check cleanly at record start if past chunk soft limit or out buffer > 200 KB
+        ;; Soft-pause check cleanly at record start if past chunk soft limit or out buffer > 700 KB
         (if (i32.and
               (i32.eqz (local.get $is_eof))
-              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 465000)))
+              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 1350000)))
             )
           (then
             (local.set $need_more (i32.const 1))
@@ -1224,9 +1224,8 @@
         (if (local.get $is_row0)
           (then
             (i32.store8 (local.get $op) (i32.const 0x5d))
-            (local.set $op (i32.sub (i32.add (local.get $op) (i32.const 1)) (global.get $row0_base)))
-            (i32.store (i32.const 544) (local.get $op))
-            (local.set $op (i32.add (local.get $row_start_op) (i32.add (i32.const 26) (local.get $op))))
+            (i32.store (i32.const 544) (i32.sub (i32.add (local.get $op) (i32.const 1)) (global.get $row0_base)))
+            (local.set $op (local.get $row_start_op))
             (local.set $columns_done (i32.const 1))
             (br_if $outer_done (local.get $hit_case_end))
             (br $outer)
