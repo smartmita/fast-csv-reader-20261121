@@ -1,5 +1,5 @@
 (module
-  (memory (export "memory") 165)
+  (memory (export "memory") 118)
 
   ;; Static JSON string fragments at 0..320
   (data (i32.const 0) "{\"code\":\"stray_cr\",\"line\":")
@@ -27,11 +27,11 @@
   (global $row0_limit i32 (i32.const 131072))
   (global $in_base i32 (i32.const 132096))
   (global $out_base i32 (i32.const 656448))
-  (global $out_limit i32 (i32.const 5000000))
-  (global $extra_base i32 (i32.const 5020000))
-  (global $extra_limit i32 (i32.const 6060000))
-  (global $err_base i32 (i32.const 6070000))
-  (global $err_limit i32 (i32.const 10270000))
+  (global $out_limit i32 (i32.const 2150000))
+  (global $extra_base i32 (i32.const 2170000))
+  (global $extra_limit i32 (i32.const 3210000))
+  (global $err_base i32 (i32.const 3220000))
+  (global $err_limit i32 (i32.const 7420000))
 
   (func (export "reset_case")
     (i32.store (i32.const 516) (global.get $out_base)) ;; op
@@ -451,10 +451,10 @@
           )
         )
 
-        ;; Soft-pause check cleanly at record start if past chunk soft limit or out buffer > 2.60 MB
+        ;; Soft-pause check cleanly at record start if past chunk soft limit or out buffer > 533 KB
         (if (i32.and
               (i32.eqz (local.get $is_eof))
-              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 3260000)))
+              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 1190000)))
             )
           (then
             (local.set $need_more (i32.const 1))
