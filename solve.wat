@@ -601,6 +601,28 @@
                         (if (i32.lt_s (local.get $eop) (i32.const 0)) (then (return (local.get $eop))))
                       )
                     )
+                    (if (i32.and
+                          (i32.eqz (local.get $junk_mode))
+                          (i32.and
+                            (i32.lt_u (local.get $flen) (i32.const 16384))
+                            (i32.and
+                              (i32.le_u (i32.add (local.get $p) (i32.const 3)) (local.get $src_end))
+                              (i32.ne (i32.load16_u (i32.add (local.get $p) (i32.const 1))) (i32.const 0x225c))
+                            )
+                          )
+                        )
+                      (then
+                        (i32.store (local.get $op) (i32.const 0x00222c22))
+                        (i32.store
+                          (i32.add (global.get $field_starts_base) (i32.shl (local.get $flen) (i32.const 2)))
+                          (i32.add (local.get $op) (i32.const 2))
+                        )
+                        (local.set $flen (i32.add (local.get $flen) (i32.const 1)))
+                        (local.set $op (i32.add (local.get $op) (i32.const 3)))
+                        (local.set $p (i32.add (local.get $p) (i32.const 1)))
+                        (br $u_simd)
+                      )
+                    )
                     (i32.store8 (local.get $op) (i32.const 0x22))
                     (local.set $op (i32.add (local.get $op) (i32.const 1)))
                     (local.set $p (i32.add (local.get $p) (i32.const 1)))
@@ -677,6 +699,28 @@
                       (then
                         (local.set $eop (call $emit_simple (local.get $eop) (i32.const 26) (i32.const 28) (local.get $record_line) (local.get $record_row)))
                         (if (i32.lt_s (local.get $eop) (i32.const 0)) (then (return (local.get $eop))))
+                      )
+                    )
+                    (if (i32.and
+                          (i32.eqz (local.get $junk_mode))
+                          (i32.and
+                            (i32.lt_u (local.get $flen) (i32.const 16384))
+                            (i32.and
+                              (i32.le_u (i32.add (local.get $p) (i32.const 3)) (local.get $src_end))
+                              (i32.ne (i32.load16_u (i32.add (local.get $p) (i32.const 1))) (i32.const 0x225c))
+                            )
+                          )
+                        )
+                      (then
+                        (i32.store (local.get $op) (i32.const 0x00222c22))
+                        (i32.store
+                          (i32.add (global.get $field_starts_base) (i32.shl (local.get $flen) (i32.const 2)))
+                          (i32.add (local.get $op) (i32.const 2))
+                        )
+                        (local.set $flen (i32.add (local.get $flen) (i32.const 1)))
+                        (local.set $op (i32.add (local.get $op) (i32.const 3)))
+                        (local.set $p (i32.add (local.get $p) (i32.const 1)))
+                        (br $u_tail)
                       )
                     )
                     (i32.store8 (local.get $op) (i32.const 0x22))
