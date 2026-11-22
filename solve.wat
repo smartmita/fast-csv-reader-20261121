@@ -1,5 +1,5 @@
 (module
-  (memory (export "memory") 110)
+  (memory (export "memory") 165)
 
   ;; Static JSON string fragments at 0..320
   (data (i32.const 0) "{\"code\":\"stray_cr\",\"line\":")
@@ -27,13 +27,14 @@
   (global $row0_limit i32 (i32.const 131072))
   (global $in_base i32 (i32.const 132096))
   (global $out_base i32 (i32.const 656448))
-  (global $out_limit i32 (i32.const 1680000))
-  (global $extra_base i32 (i32.const 1705024))
-  (global $extra_limit i32 (i32.const 2750000))
-  (global $err_base i32 (i32.const 2753600))
-  (global $err_limit i32 (i32.const 6947000))
+  (global $out_limit i32 (i32.const 5000000))
+  (global $extra_base i32 (i32.const 5020000))
+  (global $extra_limit i32 (i32.const 6060000))
+  (global $err_base i32 (i32.const 6070000))
+  (global $err_limit i32 (i32.const 10270000))
 
   (func (export "reset_case")
+    (i32.store (i32.const 516) (global.get $out_base)) ;; op
     (i32.store (i32.const 520) (i32.const 1))   ;; line = 1
     (i32.store (i32.const 524) (i32.const -1))  ;; width = -1
     (i32.store (i32.const 528) (i32.const 0))   ;; columns_done = 0
@@ -94,9 +95,9 @@
     (local.get $dst)
   )
 
-  ;; Format all binary errors into JSON at $op and close with ]}
+  ;; Format all binary errors into JSON starting at mem[516] ($op) and close with ]}
   ;; Returns total end op, or -1 if out_limit exceeded
-  (func (export "finish_case") (param $header i32) (result i32)
+  (func (export "finish_case") (param $header i32) (param $lead i32) (result i32)
     (local $op i32)
     (local $ep i32)
     (local $eop i32)
@@ -108,13 +109,23 @@
     (local $columns_done i32)
     (local $row0_len i32)
 
-    (local.set $op (global.get $out_base))
+    (local.set $op (i32.load (i32.const 516)))
     (local.set $columns_done (i32.load (i32.const 528)))
     (local.set $row0_len (i32.load (i32.const 544)))
 
+    (if (i32.gt_u (i32.add (local.get $op) (i32.const 64)) (global.get $out_limit))
+      (then (return (i32.const -1)))
+    )
+
     (if (i32.eqz (local.get $columns_done))
       (then
-        ;; Empty CSV: write {"columns":[],"rows":[],"errors":[ or null version
+        ;; Empty CSV: write lead ('[' or ',') + {"columns":[],"rows":[],"errors":[ or null version
+        (if (local.get $lead)
+          (then
+            (i32.store8 (local.get $op) (local.get $lead))
+            (local.set $op (i32.add (local.get $op) (i32.const 1)))
+          )
+        )
         (if (local.get $header)
           (then
             (memory.copy (local.get $op) (i32.const 243) (i32.const 34))
@@ -227,12 +238,18 @@
     (i32.add (local.get $op) (i32.const 2))
   )
 
-  ;; Write the row0 prefix (row0_len + 25 bytes) at $out_base for backfill pwrite
-  (func (export "build_prefix") (param $header i32) (result i32)
+  ;; Write lead ('[' or ',') + row0 prefix (1 + row0_len + 25 bytes) at $out_base
+  (func (export "build_prefix") (param $header i32) (param $lead i32) (result i32)
     (local $op i32)
     (local $row0_len i32)
     (local $row_count i32)
     (local.set $op (global.get $out_base))
+    (if (local.get $lead)
+      (then
+        (i32.store8 (local.get $op) (local.get $lead))
+        (local.set $op (i32.add (local.get $op) (i32.const 1)))
+      )
+    )
     (local.set $row0_len (i32.load (i32.const 544)))
     (local.set $row_count (i32.load (i32.const 532)))
     (if (local.get $header)
@@ -303,7 +320,7 @@
     (local $soft_p_limit i32)
 
     (local.set $p (local.get $src_start))
-    (local.set $op (global.get $out_base))
+    (local.set $op (i32.load (i32.const 516)))
     (local.set $eop (i32.load (i32.const 536)))
     (local.set $extra_op (i32.load (i32.const 540)))
     (local.set $line (i32.load (i32.const 520)))
@@ -317,11 +334,11 @@
     (local.set $splat_comma (i8x16.splat (i32.const 0x2c)))
     (local.set $splat_quote (i8x16.splat (i32.const 0x22)))
 
-    ;; Soft stop threshold if not EOF: stop between rows when >= 75% through chunk or out_op getting full
+    ;; Soft stop threshold if not EOF: stop cleanly between rows near end of chunk
     (local.set $soft_p_limit
       (if (result i32) (local.get $is_eof)
         (then (local.get $src_end))
-        (else (i32.sub (local.get $src_end) (i32.const 32768)))
+        (else (i32.sub (local.get $src_end) (i32.const 2048)))
       )
     )
 
@@ -434,10 +451,10 @@
           )
         )
 
-        ;; Soft-pause check cleanly at record start if past 75% of chunk or out buffer > 700 KB
+        ;; Soft-pause check cleanly at record start if past chunk soft limit or out buffer > 2.60 MB
         (if (i32.and
               (i32.eqz (local.get $is_eof))
-              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 1350000)))
+              (i32.or (i32.ge_u (local.get $p) (local.get $soft_p_limit)) (i32.gt_u (local.get $op) (i32.const 3260000)))
             )
           (then
             (local.set $need_more (i32.const 1))
@@ -554,12 +571,8 @@
                   (block $q_simd_done
                     (loop $q_simd
                       (br_if $q_simd_done (i32.gt_u (i32.add (local.get $p) (i32.const 16)) (local.get $src_end)))
-                      (if (i32.gt_u (i32.add (local.get $op) (i32.const 32)) (local.get $buf_limit))
-                        (then
-                          (if (local.get $is_row0) (then (i32.store (i32.const 552) (i32.const -1)) (return)))
-                          (local.set $p (local.get $record_start_p)) (local.set $op (local.get $row_start_op)) (local.set $eop (local.get $row_start_eop)) (local.set $extra_op (local.get $row_start_extra)) (local.set $line (local.get $record_line))
-                          (local.set $need_more (i32.const 1)) (br $outer_done)
-                        )
+                      (if (i32.and (local.get $is_row0) (i32.gt_u (i32.add (local.get $op) (i32.const 32)) (local.get $buf_limit)))
+                        (then (i32.store (i32.const 552) (i32.const -1)) (return))
                       )
                       (local.set $v (v128.load (local.get $p)))
                       (v128.store (local.get $op) (local.get $v))
@@ -803,6 +816,30 @@
                   )
                   (if (i32.eq (local.get $b) (i32.const 0x2c))
                     (then
+                      (if (i32.and
+                            (i32.eqz (local.get $is_row0))
+                            (i32.and
+                              (i32.lt_u (local.get $flen) (i32.const 16384))
+                              (i32.and
+                                (i32.le_u (i32.add (local.get $p) (i32.const 3)) (local.get $src_end))
+                                (i32.ne (i32.load16_u (i32.add (local.get $p) (i32.const 1))) (i32.const 0x225c))
+                              )
+                            )
+                          )
+                        (then
+                          (i32.store (local.get $op) (i32.const 0x00222c22))
+                          (i32.store
+                            (i32.add (global.get $fs_base) (i32.shl (local.get $flen) (i32.const 2)))
+                            (i32.add (local.get $op) (i32.const 2))
+                          )
+                          (local.set $flen (i32.add (local.get $flen) (i32.const 1)))
+                          (local.set $op (i32.add (local.get $op) (i32.const 3)))
+                          (local.set $p (i32.add (local.get $p) (i32.const 1)))
+                          (local.set $junk_mode (i32.const 0))
+                          (local.set $junk_added (i32.const 0))
+                          (br $enter_unquoted)
+                        )
+                      )
                       (i32.store8 (local.get $op) (i32.const 0x22))
                       (local.set $op (i32.add (local.get $op) (i32.const 1)))
                       (local.set $p (i32.add (local.get $p) (i32.const 1)))
@@ -862,12 +899,8 @@
             (block $u_simd_done
               (loop $u_simd
                 (br_if $u_simd_done (i32.gt_u (i32.add (local.get $p) (i32.const 16)) (local.get $src_end)))
-                (if (i32.gt_u (i32.add (local.get $op) (i32.const 32)) (local.get $buf_limit))
-                  (then
-                    (if (local.get $is_row0) (then (i32.store (i32.const 552) (i32.const -1)) (return)))
-                    (local.set $p (local.get $record_start_p)) (local.set $op (local.get $row_start_op)) (local.set $eop (local.get $row_start_eop)) (local.set $extra_op (local.get $row_start_extra)) (local.set $line (local.get $record_line))
-                    (local.set $need_more (i32.const 1)) (br $outer_done)
-                  )
+                (if (i32.and (local.get $is_row0) (i32.gt_u (i32.add (local.get $op) (i32.const 32)) (local.get $buf_limit)))
+                  (then (i32.store (i32.const 552) (i32.const -1)) (return))
                 )
                 (local.set $v (v128.load (local.get $p)))
                 (v128.store (local.get $op) (local.get $v))
@@ -1191,8 +1224,9 @@
         (if (local.get $is_row0)
           (then
             (i32.store8 (local.get $op) (i32.const 0x5d))
-            (i32.store (i32.const 544) (i32.sub (i32.add (local.get $op) (i32.const 1)) (global.get $row0_base)))
-            (local.set $op (local.get $row_start_op))
+            (local.set $op (i32.sub (i32.add (local.get $op) (i32.const 1)) (global.get $row0_base)))
+            (i32.store (i32.const 544) (local.get $op))
+            (local.set $op (i32.add (local.get $row_start_op) (i32.add (i32.const 26) (local.get $op))))
             (local.set $columns_done (i32.const 1))
             (br_if $outer_done (local.get $hit_case_end))
             (br $outer)
